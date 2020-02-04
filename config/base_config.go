@@ -14,6 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package config
 
 import (
@@ -39,6 +40,7 @@ type multiConfiger interface {
 	Prefix() string
 }
 
+// BaseConfig ...
 type BaseConfig struct {
 	ConfigCenterConfig *ConfigCenterConfig `yaml:"config_center" json:"config_center,omitempty"`
 	configCenterUrl    *common.URL
@@ -47,7 +49,7 @@ type BaseConfig struct {
 }
 
 func (c *BaseConfig) startConfigCenter(ctx context.Context) error {
-	url, err := common.NewURL(ctx, c.ConfigCenterConfig.Address, common.WithProtocol(c.ConfigCenterConfig.Protocol))
+	url, err := common.NewURL(ctx, c.ConfigCenterConfig.Address, common.WithProtocol(c.ConfigCenterConfig.Protocol), common.WithParams(c.ConfigCenterConfig.GetUrlMap()))
 	if err != nil {
 		return err
 	}
@@ -68,7 +70,7 @@ func (c *BaseConfig) prepareEnvironment() error {
 		logger.Errorf("Get dynamic configuration error , error message is %v", err)
 		return perrors.WithStack(err)
 	}
-	content, err := dynamicConfig.GetConfig(c.ConfigCenterConfig.ConfigFile, config_center.WithGroup(c.ConfigCenterConfig.Group))
+	content, err := dynamicConfig.GetProperties(c.ConfigCenterConfig.ConfigFile, config_center.WithGroup(c.ConfigCenterConfig.Group))
 	if err != nil {
 		logger.Errorf("Get config content in dynamic configuration error , error message is %v", err)
 		return perrors.WithStack(err)
@@ -88,7 +90,10 @@ func (c *BaseConfig) prepareEnvironment() error {
 		if len(configFile) == 0 {
 			configFile = c.ConfigCenterConfig.ConfigFile
 		}
-		appContent, err = dynamicConfig.GetConfig(configFile, config_center.WithGroup(appGroup))
+		appContent, err = dynamicConfig.GetProperties(configFile, config_center.WithGroup(appGroup))
+		if err != nil {
+			return perrors.WithStack(err)
+		}
 	}
 	//global config file
 	mapContent, err := dynamicConfig.Parser().Parse(content)
@@ -294,8 +299,8 @@ func setFieldValue(val reflect.Value, id reflect.Value, config *config.InmemoryC
 func (c *BaseConfig) fresh() {
 	configList := config.GetEnvInstance().Configuration()
 	for element := configList.Front(); element != nil; element = element.Next() {
-		config := element.Value.(*config.InmemoryConfiguration)
-		c.freshInternalConfig(config)
+		cfg := element.Value.(*config.InmemoryConfiguration)
+		c.freshInternalConfig(cfg)
 	}
 }
 
@@ -308,6 +313,7 @@ func (c *BaseConfig) freshInternalConfig(config *config.InmemoryConfiguration) {
 	setFieldValue(val, reflect.Value{}, config)
 }
 
+// SetFatherConfig ...
 func (c *BaseConfig) SetFatherConfig(fatherConfig interface{}) {
 	c.fatherConfig = fatherConfig
 }

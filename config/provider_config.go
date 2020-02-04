@@ -14,6 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package config
 
 import (
@@ -37,6 +38,7 @@ import (
 // providerConfig
 /////////////////////////
 
+// ProviderConfig ...
 type ProviderConfig struct {
 	BaseConfig   `yaml:",inline"`
 	Filter       string `yaml:"filter" json:"filter,omitempty" property:"filter"`
@@ -49,8 +51,10 @@ type ProviderConfig struct {
 	Protocols         map[string]*ProtocolConfig `yaml:"protocols" json:"protocols,omitempty" property:"protocols"`
 	ProtocolConf      interface{}                `yaml:"protocol_conf" json:"protocol_conf,omitempty" property:"protocol_conf" `
 	FilterConf        interface{}                `yaml:"filter_conf" json:"filter_conf,omitempty" property:"filter_conf" `
+	ShutdownConfig    *ShutdownConfig            `yaml:"shutdown_conf" json:"shutdown_conf,omitempty" property:"shutdown_conf" `
 }
 
+// UnmarshalYAML ...
 func (c *ProviderConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	if err := defaults.Set(c); err != nil {
 		return err
@@ -62,13 +66,17 @@ func (c *ProviderConfig) UnmarshalYAML(unmarshal func(interface{}) error) error 
 	return nil
 }
 
+// Prefix ...
 func (*ProviderConfig) Prefix() string {
 	return constant.ProviderConfigPrefix
 }
 
+// SetProviderConfig ...
 func SetProviderConfig(p ProviderConfig) {
 	providerConfig = &p
 }
+
+// GetProviderConfig ...
 func GetProviderConfig() ProviderConfig {
 	if providerConfig == nil {
 		logger.Warnf("providerConfig is nil!")
@@ -77,6 +85,7 @@ func GetProviderConfig() ProviderConfig {
 	return *providerConfig
 }
 
+// ProviderInit ...
 func ProviderInit(confProFile string) error {
 	if len(confProFile) == 0 {
 		return perrors.Errorf("application configure(provider) file name is nil")
@@ -106,6 +115,7 @@ func ProviderInit(confProFile string) error {
 	}
 
 	logger.Debugf("provider config{%#v}\n", providerConfig)
+
 	return nil
 }
 
