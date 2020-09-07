@@ -47,10 +47,10 @@ func init() {
 
 //  when do a generic invoke, struct need to be map
 
-// GenericFilter ...
+// nolint
 type GenericFilter struct{}
 
-// Invoke ...
+// Invoke turns the parameters to map for generic method
 func (ef *GenericFilter) Invoke(ctx context.Context, invoker protocol.Invoker, invocation protocol.Invocation) protocol.Result {
 	if invocation.MethodName() == constant.GENERIC && len(invocation.Arguments()) == 3 {
 		oldArguments := invocation.Arguments()
@@ -73,16 +73,17 @@ func (ef *GenericFilter) Invoke(ctx context.Context, invoker protocol.Invoker, i
 	return invoker.Invoke(ctx, invocation)
 }
 
-// OnResponse ...
+// OnResponse dummy process, returns the result directly
 func (ef *GenericFilter) OnResponse(_ context.Context, result protocol.Result, _ protocol.Invoker,
 	_ protocol.Invocation) protocol.Result {
 	return result
 }
 
-// GetGenericFilter ...
+// GetGenericFilter returns GenericFilter instance
 func GetGenericFilter() filter.Filter {
 	return &GenericFilter{}
 }
+
 func struct2MapAll(obj interface{}) interface{} {
 	if obj == nil {
 		return obj
@@ -127,6 +128,7 @@ func struct2MapAll(obj interface{}) interface{} {
 		return obj
 	}
 }
+
 func setInMap(m map[string]interface{}, structField reflect.StructField, value interface{}) (result map[string]interface{}) {
 	result = m
 	if tagName := structField.Tag.Get("m"); tagName == "" {
@@ -136,6 +138,7 @@ func setInMap(m map[string]interface{}, structField reflect.StructField, value i
 	}
 	return
 }
+
 func headerAtoa(a string) (b string) {
 	b = strings.ToLower(a[:1]) + a[1:]
 	return

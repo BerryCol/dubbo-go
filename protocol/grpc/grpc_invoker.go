@@ -1,19 +1,19 @@
 /*
-Licensed to the Apache Software Foundation (ASF) under one or more
-contributor license agreements.  See the NOTICE file distributed with
-this work for additional information regarding copyright ownership.
-The ASF licenses this file to You under the Apache License, Version 2.0
-(the "License"); you may not use this file except in compliance with
-the License.  You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 
 package grpc
 
@@ -35,17 +35,16 @@ import (
 	"github.com/apache/dubbo-go/protocol"
 )
 
-// ErrNoReply ...
-var ErrNoReply = errors.New("request need @response")
+var errNoReply = errors.New("request need @response")
 
-// GrpcInvoker ...
+// nolint
 type GrpcInvoker struct {
 	protocol.BaseInvoker
 	quitOnce sync.Once
 	client   *Client
 }
 
-// NewGrpcInvoker ...
+// NewGrpcInvoker returns a Grpc invoker instance
 func NewGrpcInvoker(url common.URL, client *Client) *GrpcInvoker {
 	return &GrpcInvoker{
 		BaseInvoker: *protocol.NewBaseInvoker(url),
@@ -53,14 +52,14 @@ func NewGrpcInvoker(url common.URL, client *Client) *GrpcInvoker {
 	}
 }
 
-// Invoke ...
+// Invoke is used to call service method by invocation
 func (gi *GrpcInvoker) Invoke(ctx context.Context, invocation protocol.Invocation) protocol.Result {
 	var (
 		result protocol.RPCResult
 	)
 
 	if invocation.Reply() == nil {
-		result.Err = ErrNoReply
+		result.Err = errNoReply
 	}
 
 	in := []reflect.Value{}
@@ -82,17 +81,17 @@ func (gi *GrpcInvoker) Invoke(ctx context.Context, invocation protocol.Invocatio
 	return &result
 }
 
-// IsAvailable ...
+// IsAvailable get available status
 func (gi *GrpcInvoker) IsAvailable() bool {
 	return gi.BaseInvoker.IsAvailable() && gi.client.GetState() != connectivity.Shutdown
 }
 
-// IsDestroyed ...
+// IsDestroyed get destroyed status
 func (gi *GrpcInvoker) IsDestroyed() bool {
 	return gi.BaseInvoker.IsDestroyed() && gi.client.GetState() == connectivity.Shutdown
 }
 
-// Destroy ...
+// Destroy will destroy gRPC's invoker and client, so it is only called once
 func (gi *GrpcInvoker) Destroy() {
 	gi.quitOnce.Do(func() {
 		gi.BaseInvoker.Destroy()

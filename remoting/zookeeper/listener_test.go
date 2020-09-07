@@ -32,6 +32,10 @@ import (
 	"github.com/apache/dubbo-go/remoting"
 )
 
+var (
+	dubboPropertiesPath = "/dubbo/dubbo.properties"
+)
+
 func initZkData(t *testing.T) (*zk.TestCluster, *ZookeeperClient, <-chan zk.Event) {
 	ts, client, event, err := NewMockZookeeperClient("test", 15*time.Second)
 	assert.NoError(t, err)
@@ -58,14 +62,15 @@ func initZkData(t *testing.T) (*zk.TestCluster, *ZookeeperClient, <-chan zk.Even
 	dubbo.service.com.ikurento.user.UserProvider.cluster=failover
 `
 
-	err = client.Create("/dubbo/dubbo.properties")
+	err = client.Create(dubboPropertiesPath)
 	assert.NoError(t, err)
 
-	_, err = client.Conn.Set("/dubbo/dubbo.properties", []byte(data), 0)
+	_, err = client.Conn.Set(dubboPropertiesPath, []byte(data), 0)
 	assert.NoError(t, err)
 
 	return ts, client, event
 }
+
 func TestListener(t *testing.T) {
 	changedData := `
 	dubbo.consumer.request_timeout=3s
@@ -96,9 +101,9 @@ func TestListener(t *testing.T) {
 	go client.HandleZkEvent(event)
 	listener := NewZkEventListener(client)
 	dataListener := &mockDataListener{client: client, changedData: changedData, wait: &wait}
-	listener.ListenServiceEvent("/dubbo", dataListener)
+	listener.ListenServiceEvent(nil, "/dubbo", dataListener)
 	time.Sleep(1 * time.Second)
-	_, err := client.Conn.Set("/dubbo/dubbo.properties", []byte(changedData), 1)
+	_, err := client.Conn.Set(dubboPropertiesPath, []byte(changedData), 1)
 	assert.NoError(t, err)
 	wait.Wait()
 	assert.Equal(t, changedData, dataListener.eventList[1].Content)

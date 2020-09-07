@@ -22,12 +22,15 @@ import (
 )
 
 import (
-	"github.com/dubbogo/getty"
 	perrors "github.com/pkg/errors"
 )
 
+import (
+	"github.com/apache/dubbo-go/config"
+)
+
 type (
-	// GettySessionParam ...
+	// GettySessionParam is session configuration for getty.
 	GettySessionParam struct {
 		CompressEncoding bool   `default:"false" yaml:"compress_encoding" json:"compress_encoding,omitempty"`
 		TcpNoDelay       bool   `default:"true" yaml:"tcp_no_delay" json:"tcp_no_delay,omitempty"`
@@ -47,8 +50,7 @@ type (
 		SessionName      string `default:"rpc" yaml:"session_name" json:"session_name,omitempty"`
 	}
 
-	// ServerConfig
-	//Config holds supported types by the multiconfig package
+	// ServerConfig holds supported types by the multiconfig package
 	ServerConfig struct {
 		// session
 		SessionTimeout string `default:"60s" yaml:"session_timeout" json:"session_timeout,omitempty"`
@@ -64,8 +66,7 @@ type (
 		GettySessionParam GettySessionParam `required:"true" yaml:"getty_session_param" json:"getty_session_param,omitempty"`
 	}
 
-	// ClientConfig
-	//Config holds supported types by the multiconfig package
+	// ClientConfig holds supported types by the multiconfig package
 	ClientConfig struct {
 		ReconnectInterval int `default:"0" yaml:"reconnect_interval" json:"reconnect_interval,omitempty"`
 
@@ -94,7 +95,7 @@ type (
 	}
 )
 
-// GetDefaultClientConfig ...
+// GetDefaultClientConfig gets client default configuration.
 func GetDefaultClientConfig() ClientConfig {
 	return ClientConfig{
 		ReconnectInterval: 0,
@@ -122,7 +123,7 @@ func GetDefaultClientConfig() ClientConfig {
 		}}
 }
 
-// GetDefaultServerConfig ...
+// GetDefaultServerConfig gets server default configuration.
 func GetDefaultServerConfig() ServerConfig {
 	return ServerConfig{
 		SessionTimeout: "180s",
@@ -147,7 +148,7 @@ func GetDefaultServerConfig() ServerConfig {
 	}
 }
 
-// CheckValidity ...
+// CheckValidity confirm getty sessian params.
 func (c *GettySessionParam) CheckValidity() error {
 	var err error
 
@@ -170,7 +171,7 @@ func (c *GettySessionParam) CheckValidity() error {
 	return nil
 }
 
-// CheckValidity ...
+// CheckValidity confirm client params.
 func (c *ClientConfig) CheckValidity() error {
 	var err error
 
@@ -180,9 +181,9 @@ func (c *ClientConfig) CheckValidity() error {
 		return perrors.WithMessagef(err, "time.ParseDuration(HeartbeatPeroid{%#v})", c.HeartbeatPeriod)
 	}
 
-	if c.heartbeatPeriod >= time.Duration(getty.MaxWheelTimeSpan) {
+	if c.heartbeatPeriod >= time.Duration(config.MaxWheelTimeSpan) {
 		return perrors.WithMessagef(err, "heartbeat_period %s should be less than %s",
-			c.HeartbeatPeriod, time.Duration(getty.MaxWheelTimeSpan))
+			c.HeartbeatPeriod, time.Duration(config.MaxWheelTimeSpan))
 	}
 
 	if c.sessionTimeout, err = time.ParseDuration(c.SessionTimeout); err != nil {
@@ -192,7 +193,7 @@ func (c *ClientConfig) CheckValidity() error {
 	return perrors.WithStack(c.GettySessionParam.CheckValidity())
 }
 
-// CheckValidity ...
+// CheckValidity confirm server params.
 func (c *ServerConfig) CheckValidity() error {
 	var err error
 
@@ -200,9 +201,9 @@ func (c *ServerConfig) CheckValidity() error {
 		return perrors.WithMessagef(err, "time.ParseDuration(SessionTimeout{%#v})", c.SessionTimeout)
 	}
 
-	if c.sessionTimeout >= time.Duration(getty.MaxWheelTimeSpan) {
+	if c.sessionTimeout >= time.Duration(config.MaxWheelTimeSpan) {
 		return perrors.WithMessagef(err, "session_timeout %s should be less than %s",
-			c.SessionTimeout, time.Duration(getty.MaxWheelTimeSpan))
+			c.SessionTimeout, time.Duration(config.MaxWheelTimeSpan))
 	}
 
 	return perrors.WithStack(c.GettySessionParam.CheckValidity())

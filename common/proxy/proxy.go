@@ -24,13 +24,19 @@ import (
 )
 
 import (
+	"github.com/apache/dubbo-go-hessian2/java_exception"
+	perrors "github.com/pkg/errors"
+)
+
+import (
 	"github.com/apache/dubbo-go/common"
+	"github.com/apache/dubbo-go/common/constant"
 	"github.com/apache/dubbo-go/common/logger"
 	"github.com/apache/dubbo-go/protocol"
 	invocation_impl "github.com/apache/dubbo-go/protocol/invocation"
 )
 
-// Proxy struct
+// nolint
 type Proxy struct {
 	rpc         common.RPCService
 	invoke      protocol.Invoker
@@ -44,7 +50,7 @@ var (
 	typError = reflect.Zero(reflect.TypeOf((*error)(nil)).Elem()).Type()
 )
 
-// NewProxy ...
+// NewProxy create service proxy.
 func NewProxy(invoke protocol.Invoker, callBack interface{}, attachments map[string]string) *Proxy {
 	return &Proxy{
 		invoke:      invoke,
@@ -139,10 +145,32 @@ func (p *Proxy) Implement(v common.RPCService) {
 				inv.SetAttachments(k, value)
 			}
 
+			// add user setAttachment
+			atm := invCtx.Value(constant.AttachmentKey)
+			if m, ok := atm.(map[string]string); ok {
+				for k, value := range m {
+					inv.SetAttachments(k, value)
+				}
+			}
+
 			result := p.invoke.Invoke(invCtx, inv)
+			if len(result.Attachments()) > 0 {
+				invCtx = context.WithValue(invCtx, constant.AttachmentKey, result.Attachments())
+			}
 
 			err = result.Error()
-			logger.Infof("[makeDubboCallProxy] result: %v, err: %v", result.Result(), err)
+			if err != nil {
+				// the cause reason
+				err = perrors.Cause(err)
+				// if some error happened, it should be log some info in the seperate file.
+				if throwabler, ok := err.(java_exception.Throwabler); ok {
+					logger.Warnf("invoke service throw exception: %v , stackTraceElements: %v", err.Error(), throwabler.GetStackTrace())
+				} else {
+					logger.Warnf("result err: %v", err)
+				}
+			} else {
+				logger.Debugf("[makeDubboCallProxy] result: %v, err: %v", result.Result(), err)
+			}
 			if len(outs) == 1 {
 				return []reflect.Value{reflect.ValueOf(&err).Elem()}
 			}
@@ -193,12 +221,12 @@ func (p *Proxy) Implement(v common.RPCService) {
 
 }
 
-// Get ...
+// Get gets rpc service instance.
 func (p *Proxy) Get() common.RPCService {
 	return p.rpc
 }
 
-// GetCallback ...
+// GetCallback gets callback.
 func (p *Proxy) GetCallback() interface{} {
 	return p.callBack
 }

@@ -51,7 +51,7 @@ type nacosListener struct {
 	subscribeParam *vo.SubscribeParam
 }
 
-// NewNacosListener ...
+// NewRegistryDataListener creates a data listener for nacos
 func NewNacosListener(url common.URL, namingClient naming_client.INamingClient) (*nacosListener, error) {
 	listener := &nacosListener{
 		namingClient: namingClient,
@@ -109,6 +109,7 @@ func generateUrl(instance model.Instance) *common.URL {
 	)
 }
 
+// Callback will be invoked when got subscribed events.
 func (nl *nacosListener) Callback(services []model.SubscribeService, err error) {
 	if err != nil {
 		logger.Errorf("nacos subscribe callback error:%s , subscribe:%+v ", err.Error(), nl.subscribeParam)
@@ -131,10 +132,10 @@ func (nl *nacosListener) Callback(services []model.SubscribeService, err error) 
 		instance := generateInstance(services[i])
 		newInstanceMap[host] = instance
 		if old, ok := nl.instanceMap[host]; !ok {
-			//instance is not exsit in cache,add it to cache
+			// instance does not exist in cache, add it to cache
 			addInstances = append(addInstances, instance)
 		} else {
-			//instance is not different from cache,update it to cache
+			// instance is not different from cache, update it to cache
 			if !reflect.DeepEqual(old, instance) {
 				updateInstances = append(updateInstances, instance)
 			}
@@ -143,7 +144,7 @@ func (nl *nacosListener) Callback(services []model.SubscribeService, err error) 
 
 	for host, inst := range nl.instanceMap {
 		if _, ok := newInstanceMap[host]; !ok {
-			//cache  instance is not exsit in  new instance list, remove it from  cache
+			// cache instance does not exist in new instance list, remove it from cache
 			delInstances = append(delInstances, inst)
 		}
 	}
@@ -187,7 +188,8 @@ func (nl *nacosListener) startListen() error {
 	}
 	serviceName := getSubscribeName(nl.listenUrl)
 	nl.subscribeParam = &vo.SubscribeParam{ServiceName: serviceName, SubscribeCallback: nl.Callback}
-	return nl.namingClient.Subscribe(nl.subscribeParam)
+	go nl.namingClient.Subscribe(nl.subscribeParam)
+	return nil
 }
 
 func (nl *nacosListener) stopListen() error {
@@ -198,6 +200,7 @@ func (nl *nacosListener) process(configType *config_center.ConfigChangeEvent) {
 	nl.events <- configType
 }
 
+// Next returns the service event from nacos.
 func (nl *nacosListener) Next() (*registry.ServiceEvent, error) {
 	for {
 		select {
@@ -212,6 +215,7 @@ func (nl *nacosListener) Next() (*registry.ServiceEvent, error) {
 	}
 }
 
+// nolint
 func (nl *nacosListener) Close() {
 	nl.stopListen()
 	close(nl.done)

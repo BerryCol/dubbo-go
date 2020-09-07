@@ -18,18 +18,20 @@
 package dubbo
 
 import (
+	"crypto/tls"
 	"fmt"
 	"net"
 )
 
 import (
-	"github.com/dubbogo/getty"
+	"github.com/apache/dubbo-getty"
 	"github.com/dubbogo/gost/sync"
 	"gopkg.in/yaml.v2"
 )
 
 import (
 	"github.com/apache/dubbo-go/common"
+	"github.com/apache/dubbo-go/common/constant"
 	"github.com/apache/dubbo-go/common/logger"
 	"github.com/apache/dubbo-go/config"
 )
@@ -71,10 +73,10 @@ func init() {
 	if err := srvConf.CheckValidity(); err != nil {
 		panic(err)
 	}
-	SetServerGrpool()
+	setServerGrpool()
 }
 
-// SetServerConfig ...
+// SetServerConfig set dubbo server config.
 func SetServerConfig(s ServerConfig) {
 	srvConf = &s
 	err := srvConf.CheckValidity()
@@ -82,30 +84,29 @@ func SetServerConfig(s ServerConfig) {
 		logger.Warnf("[ServerConfig CheckValidity] error: %v", err)
 		return
 	}
-	SetServerGrpool()
+	setServerGrpool()
 }
 
-// GetServerConfig ...
+// GetServerConfig get dubbo server config.
 func GetServerConfig() ServerConfig {
 	return *srvConf
 }
 
-// SetServerGrpool ...
-func SetServerGrpool() {
+func setServerGrpool() {
 	if srvConf.GrPoolSize > 1 {
 		srvGrpool = gxsync.NewTaskPool(gxsync.WithTaskPoolTaskPoolSize(srvConf.GrPoolSize), gxsync.WithTaskPoolTaskQueueLength(srvConf.QueueLen),
 			gxsync.WithTaskPoolTaskQueueNumber(srvConf.QueueNumber))
 	}
 }
 
-// Server ...
+// Server is dubbo protocol server.
 type Server struct {
 	conf       ServerConfig
 	tcpServer  getty.Server
 	rpcHandler *RpcServerHandler
 }
 
-// NewServer ...
+// NewServer create a new Server.
 func NewServer() *Server {
 
 	s := &Server{
@@ -127,7 +128,20 @@ func (s *Server) newSession(session getty.Session) error {
 	if conf.GettySessionParam.CompressEncoding {
 		session.SetCompressType(getty.CompressZip)
 	}
-
+	if _, ok = session.Conn().(*tls.Conn); ok {
+		session.SetName(conf.GettySessionParam.SessionName)
+		session.SetMaxMsgLen(conf.GettySessionParam.MaxMsgLen)
+		session.SetPkgHandler(rpcServerPkgHandler)
+		session.SetEventListener(s.rpcHandler)
+		session.SetWQLen(conf.GettySessionParam.PkgWQSize)
+		session.SetReadTimeout(conf.GettySessionParam.tcpReadTimeout)
+		session.SetWriteTimeout(conf.GettySessionParam.tcpWriteTimeout)
+		session.SetCronPeriod((int)(conf.sessionTimeout.Nanoseconds() / 1e6))
+		session.SetWaitTime(conf.GettySessionParam.waitTimeout)
+		logger.Debugf("server accepts new session:%s\n", session.Stat())
+		session.SetTaskPool(srvGrpool)
+		return nil
+	}
 	if tcpConn, ok = session.Conn().(*net.TCPConn); !ok {
 		panic(fmt.Sprintf("%s, session.conn{%#v} is not tcp connection\n", session.Stat(), session.Conn()))
 	}
@@ -156,7 +170,7 @@ func (s *Server) newSession(session getty.Session) error {
 	return nil
 }
 
-// Start ...
+// Start start dubbo server.
 func (s *Server) Start(url common.URL) {
 	var (
 		addr      string
@@ -164,16 +178,25 @@ func (s *Server) Start(url common.URL) {
 	)
 
 	addr = url.Location
-	tcpServer = getty.NewTCPServer(
-		getty.WithLocalAddress(addr),
-	)
+	if url.GetParamBool(constant.SSL_ENABLED_KEY, false) {
+		tcpServer = getty.NewTCPServer(
+			getty.WithLocalAddress(addr),
+			getty.WithServerSslEnabled(url.GetParamBool(constant.SSL_ENABLED_KEY, false)),
+			getty.WithServerTlsConfigBuilder(config.GetServerTlsConfigBuilder()),
+		)
+
+	} else {
+		tcpServer = getty.NewTCPServer(
+			getty.WithLocalAddress(addr),
+		)
+	}
 	tcpServer.RunEventLoop(s.newSession)
 	logger.Debugf("s bind addr{%s} ok!", addr)
 	s.tcpServer = tcpServer
 
 }
 
-// Stop ...
+// Stop stop dubbo server.
 func (s *Server) Stop() {
 	s.tcpServer.Close()
 }

@@ -18,6 +18,10 @@
 package cluster_impl
 
 import (
+	"context"
+)
+
+import (
 	gxnet "github.com/dubbogo/gost/net"
 	perrors "github.com/pkg/errors"
 	"go.uber.org/atomic"
@@ -36,6 +40,7 @@ type baseClusterInvoker struct {
 	availablecheck bool
 	destroyed      *atomic.Bool
 	stickyInvoker  protocol.Invoker
+	interceptor    cluster.ClusterInterceptor
 }
 
 func newBaseClusterInvoker(directory cluster.Directory) baseClusterInvoker {
@@ -45,6 +50,7 @@ func newBaseClusterInvoker(directory cluster.Directory) baseClusterInvoker {
 		destroyed:      atomic.NewBool(false),
 	}
 }
+
 func (invoker *baseClusterInvoker) GetUrl() common.URL {
 	return invoker.directory.GetUrl()
 }
@@ -86,8 +92,11 @@ func (invoker *baseClusterInvoker) checkWhetherDestroyed() error {
 }
 
 func (invoker *baseClusterInvoker) doSelect(lb cluster.LoadBalance, invocation protocol.Invocation, invokers []protocol.Invoker, invoked []protocol.Invoker) protocol.Invoker {
-
 	var selectedInvoker protocol.Invoker
+	if len(invokers) <= 0 {
+		return selectedInvoker
+	}
+
 	url := invokers[0].GetUrl()
 	sticky := url.GetParamBool(constant.STICKY_KEY, false)
 	//Get the service method sticky config if have
@@ -97,19 +106,17 @@ func (invoker *baseClusterInvoker) doSelect(lb cluster.LoadBalance, invocation p
 		invoker.stickyInvoker = nil
 	}
 
-	if sticky && invoker.stickyInvoker != nil && (invoked == nil || !isInvoked(invoker.stickyInvoker, invoked)) {
-		if invoker.availablecheck && invoker.stickyInvoker.IsAvailable() {
-			return invoker.stickyInvoker
-		}
+	if sticky && invoker.availablecheck &&
+		invoker.stickyInvoker != nil && invoker.stickyInvoker.IsAvailable() &&
+		(invoked == nil || !isInvoked(invoker.stickyInvoker, invoked)) {
+		return invoker.stickyInvoker
 	}
 
 	selectedInvoker = invoker.doSelectInvoker(lb, invocation, invokers, invoked)
-
 	if sticky {
 		invoker.stickyInvoker = selectedInvoker
 	}
 	return selectedInvoker
-
 }
 
 func (invoker *baseClusterInvoker) doSelectInvoker(lb cluster.LoadBalance, invocation protocol.Invocation, invokers []protocol.Invoker, invoked []protocol.Invoker) protocol.Invoker {
@@ -142,6 +149,20 @@ func (invoker *baseClusterInvoker) doSelectInvoker(lb cluster.LoadBalance, invoc
 		}
 	}
 	return selectedInvoker
+}
+
+func (invoker *baseClusterInvoker) Invoke(ctx context.Context, invocation protocol.Invocation) protocol.Result {
+	if invoker.interceptor != nil {
+		invoker.interceptor.BeforeInvoker(ctx, invocation)
+
+		result := invoker.interceptor.DoInvoke(ctx, invocation)
+
+		invoker.interceptor.AfterInvoker(ctx, invocation)
+
+		return result
+	}
+
+	return nil
 }
 
 func isInvoked(selectedInvoker protocol.Invoker, invoked []protocol.Invoker) bool {

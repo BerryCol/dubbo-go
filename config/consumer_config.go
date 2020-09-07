@@ -18,51 +18,54 @@
 package config
 
 import (
-	"io/ioutil"
-	"path"
+	"bytes"
 	"time"
 )
 
 import (
 	"github.com/creasty/defaults"
-	"github.com/dubbogo/getty"
 	perrors "github.com/pkg/errors"
-	"gopkg.in/yaml.v2"
 )
 
 import (
 	"github.com/apache/dubbo-go/common/constant"
 	"github.com/apache/dubbo-go/common/logger"
+	"github.com/apache/dubbo-go/common/yaml"
+)
+
+const (
+	MaxWheelTimeSpan = 900e9 // 900s, 15 minute
 )
 
 /////////////////////////
 // consumerConfig
 /////////////////////////
 
-// ConsumerConfig ...
+// ConsumerConfig is Consumer default configuration
 type ConsumerConfig struct {
 	BaseConfig `yaml:",inline"`
-	Filter     string `yaml:"filter" json:"filter,omitempty" property:"filter"`
-	// application
-	ApplicationConfig *ApplicationConfig `yaml:"application" json:"application,omitempty" property:"application"`
+	configCenter
+	Filter string `yaml:"filter" json:"filter,omitempty" property:"filter"`
 	// client
 	Connect_Timeout string `default:"100ms"  yaml:"connect_timeout" json:"connect_timeout,omitempty" property:"connect_timeout"`
 	ConnectTimeout  time.Duration
+
+	Registry   *RegistryConfig            `yaml:"registry" json:"registry,omitempty" property:"registry"`
+	Registries map[string]*RegistryConfig `default:"{}" yaml:"registries" json:"registries" property:"registries"`
 
 	Request_Timeout string `yaml:"request_timeout" default:"5s" json:"request_timeout,omitempty" property:"request_timeout"`
 	RequestTimeout  time.Duration
 	ProxyFactory    string `yaml:"proxy_factory" default:"default" json:"proxy_factory,omitempty" property:"proxy_factory"`
 	Check           *bool  `yaml:"check"  json:"check,omitempty" property:"check"`
 
-	Registry       *RegistryConfig             `yaml:"registry" json:"registry,omitempty" property:"registry"`
-	Registries     map[string]*RegistryConfig  `yaml:"registries" json:"registries,omitempty" property:"registries"`
 	References     map[string]*ReferenceConfig `yaml:"references" json:"references,omitempty" property:"references"`
 	ProtocolConf   interface{}                 `yaml:"protocol_conf" json:"protocol_conf,omitempty" property:"protocol_conf"`
 	FilterConf     interface{}                 `yaml:"filter_conf" json:"filter_conf,omitempty" property:"filter_conf" `
 	ShutdownConfig *ShutdownConfig             `yaml:"shutdown_conf" json:"shutdown_conf,omitempty" property:"shutdown_conf" `
+	ConfigType     map[string]string           `yaml:"config_type" json:"config_type,omitempty" property:"config_type"`
 }
 
-// UnmarshalYAML ...
+// UnmarshalYAML unmarshals the ConsumerConfig by @unmarshal function
 func (c *ConsumerConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	if err := defaults.Set(c); err != nil {
 		return err
@@ -74,36 +77,27 @@ func (c *ConsumerConfig) UnmarshalYAML(unmarshal func(interface{}) error) error 
 	return nil
 }
 
-// Prefix ...
+// nolint
 func (*ConsumerConfig) Prefix() string {
 	return constant.ConsumerConfigPrefix
 }
 
-// SetConsumerConfig ...
+// SetConsumerConfig sets consumerConfig by @c
 func SetConsumerConfig(c ConsumerConfig) {
 	consumerConfig = &c
 }
 
-// ConsumerInit ...
+// ConsumerInit loads config file to init consumer config
 func ConsumerInit(confConFile string) error {
 	if confConFile == "" {
 		return perrors.Errorf("application configure(consumer) file name is nil")
 	}
-
-	if path.Ext(confConFile) != ".yml" {
-		return perrors.Errorf("application configure file name{%v} suffix must be .yml", confConFile)
-	}
-
-	confFileStream, err := ioutil.ReadFile(confConFile)
-	if err != nil {
-		return perrors.Errorf("ioutil.ReadFile(file:%s) = error:%v", confConFile, perrors.WithStack(err))
-	}
 	consumerConfig = &ConsumerConfig{}
-	err = yaml.Unmarshal(confFileStream, consumerConfig)
+	fileStream, err := yaml.UnmarshalYMLConfig(confConFile, consumerConfig)
 	if err != nil {
-		return perrors.Errorf("yaml.Unmarshal() = error:%v", perrors.WithStack(err))
+		return perrors.Errorf("unmarshalYmlConfig error %v", perrors.WithStack(err))
 	}
-
+	consumerConfig.fileStream = bytes.NewBuffer(fileStream)
 	//set method interfaceId & interfaceName
 	for k, v := range consumerConfig.References {
 		//set id for reference
@@ -116,9 +110,9 @@ func ConsumerInit(confConFile string) error {
 		if consumerConfig.RequestTimeout, err = time.ParseDuration(consumerConfig.Request_Timeout); err != nil {
 			return perrors.WithMessagef(err, "time.ParseDuration(Request_Timeout{%#v})", consumerConfig.Request_Timeout)
 		}
-		if consumerConfig.RequestTimeout >= time.Duration(getty.MaxWheelTimeSpan) {
+		if consumerConfig.RequestTimeout >= time.Duration(MaxWheelTimeSpan) {
 			return perrors.WithMessagef(err, "request_timeout %s should be less than %s",
-				consumerConfig.Request_Timeout, time.Duration(getty.MaxWheelTimeSpan))
+				consumerConfig.Request_Timeout, time.Duration(MaxWheelTimeSpan))
 		}
 	}
 	if consumerConfig.Connect_Timeout != "" {
@@ -126,20 +120,15 @@ func ConsumerInit(confConFile string) error {
 			return perrors.WithMessagef(err, "time.ParseDuration(Connect_Timeout{%#v})", consumerConfig.Connect_Timeout)
 		}
 	}
+
 	logger.Debugf("consumer config{%#v}\n", consumerConfig)
+
 	return nil
 }
 
 func configCenterRefreshConsumer() error {
 	//fresh it
 	var err error
-	if consumerConfig.ConfigCenterConfig != nil {
-		consumerConfig.SetFatherConfig(consumerConfig)
-		if err := consumerConfig.startConfigCenter(); err != nil {
-			return perrors.Errorf("start config center error , error message is {%v}", perrors.WithStack(err))
-		}
-		consumerConfig.fresh()
-	}
 	if consumerConfig.Request_Timeout != "" {
 		if consumerConfig.RequestTimeout, err = time.ParseDuration(consumerConfig.Request_Timeout); err != nil {
 			return perrors.WithMessagef(err, "time.ParseDuration(Request_Timeout{%#v})", consumerConfig.Request_Timeout)
@@ -150,5 +139,12 @@ func configCenterRefreshConsumer() error {
 			return perrors.WithMessagef(err, "time.ParseDuration(Connect_Timeout{%#v})", consumerConfig.Connect_Timeout)
 		}
 	}
-	return err
+	if consumerConfig.ConfigCenterConfig != nil {
+		consumerConfig.SetFatherConfig(consumerConfig)
+		if err = consumerConfig.startConfigCenter((*consumerConfig).BaseConfig); err != nil {
+			return perrors.Errorf("start config center error , error message is {%v}", perrors.WithStack(err))
+		}
+		consumerConfig.fresh()
+	}
+	return nil
 }

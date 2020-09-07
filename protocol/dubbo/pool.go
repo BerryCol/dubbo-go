@@ -18,6 +18,7 @@
 package dubbo
 
 import (
+	"crypto/tls"
 	"fmt"
 	"math/rand"
 	"net"
@@ -27,12 +28,13 @@ import (
 )
 
 import (
-	"github.com/dubbogo/getty"
+	"github.com/apache/dubbo-getty"
 	perrors "github.com/pkg/errors"
 )
 
 import (
 	"github.com/apache/dubbo-go/common/logger"
+	"github.com/apache/dubbo-go/config"
 )
 
 type gettyRPCClient struct {
@@ -53,15 +55,31 @@ var (
 )
 
 func newGettyRPCClientConn(pool *gettyRPCClientPool, protocol, addr string) (*gettyRPCClient, error) {
-	c := &gettyRPCClient{
-		protocol: protocol,
-		addr:     addr,
-		pool:     pool,
-		gettyClient: getty.NewTCPClient(
+	var (
+		gettyClient getty.Client
+		sslEnabled  bool
+	)
+	sslEnabled = pool.sslEnabled
+	if sslEnabled {
+		gettyClient = getty.NewTCPClient(
 			getty.WithServerAddress(addr),
 			getty.WithConnectionNumber((int)(pool.rpcClient.conf.ConnectionNum)),
 			getty.WithReconnectInterval(pool.rpcClient.conf.ReconnectInterval),
-		),
+			getty.WithClientSslEnabled(pool.sslEnabled),
+			getty.WithClientTlsConfigBuilder(config.GetClientTlsConfigBuilder()),
+		)
+	} else {
+		gettyClient = getty.NewTCPClient(
+			getty.WithServerAddress(addr),
+			getty.WithConnectionNumber((int)(pool.rpcClient.conf.ConnectionNum)),
+			getty.WithReconnectInterval(pool.rpcClient.conf.ReconnectInterval),
+		)
+	}
+	c := &gettyRPCClient{
+		protocol:    protocol,
+		addr:        addr,
+		pool:        pool,
+		gettyClient: gettyClient,
 	}
 	go c.gettyClient.RunEventLoop(c.newSession)
 	idx := 1
@@ -78,7 +96,7 @@ func newGettyRPCClientConn(pool *gettyRPCClientPool, protocol, addr string) (*ge
 		}
 		time.Sleep(1e6)
 	}
-	logger.Infof("client init ok")
+	logger.Debug("client init ok")
 	c.updateActive(time.Now().Unix())
 
 	return c, nil
@@ -94,16 +112,34 @@ func (c *gettyRPCClient) getActive() int64 {
 
 func (c *gettyRPCClient) newSession(session getty.Session) error {
 	var (
-		ok      bool
-		tcpConn *net.TCPConn
-		conf    ClientConfig
+		ok         bool
+		tcpConn    *net.TCPConn
+		conf       ClientConfig
+		sslEnabled bool
 	)
 
 	conf = c.pool.rpcClient.conf
+	sslEnabled = c.pool.sslEnabled
 	if conf.GettySessionParam.CompressEncoding {
 		session.SetCompressType(getty.CompressZip)
 	}
-
+	if sslEnabled {
+		if _, ok = session.Conn().(*tls.Conn); !ok {
+			panic(fmt.Sprintf("%s, session.conn{%#v} is not tls connection\n", session.Stat(), session.Conn()))
+		}
+		session.SetName(conf.GettySessionParam.SessionName)
+		session.SetMaxMsgLen(conf.GettySessionParam.MaxMsgLen)
+		session.SetPkgHandler(NewRpcClientPackageHandler(c.pool.rpcClient))
+		session.SetEventListener(NewRpcClientHandler(c))
+		session.SetWQLen(conf.GettySessionParam.PkgWQSize)
+		session.SetReadTimeout(conf.GettySessionParam.tcpReadTimeout)
+		session.SetWriteTimeout(conf.GettySessionParam.tcpWriteTimeout)
+		session.SetCronPeriod((int)(conf.heartbeatPeriod.Nanoseconds() / 1e6))
+		session.SetWaitTime(conf.GettySessionParam.waitTimeout)
+		logger.Debugf("client new session:%s\n", session.Stat())
+		session.SetTaskPool(clientGrpool)
+		return nil
+	}
 	if tcpConn, ok = session.Conn().(*net.TCPConn); !ok {
 		panic(fmt.Sprintf("%s, session.conn{%#v} is not tcp connection\n", session.Stat(), session.Conn()))
 	}
@@ -219,25 +255,25 @@ func (c *gettyRPCClient) updateSession(session getty.Session) {
 
 func (c *gettyRPCClient) getClientRpcSession(session getty.Session) (rpcSession, error) {
 	var (
-		err        error
-		rpcSession rpcSession
+		err              error
+		rpcClientSession rpcSession
 	)
 	c.lock.RLock()
 	defer c.lock.RUnlock()
 	if c.sessions == nil {
-		return rpcSession, errClientClosed
+		return rpcClientSession, errClientClosed
 	}
 
 	err = errSessionNotExist
 	for _, s := range c.sessions {
 		if s.session == session {
-			rpcSession = *s
+			rpcClientSession = *s
 			err = nil
 			break
 		}
 	}
 
-	return rpcSession, perrors.WithStack(err)
+	return rpcClientSession, perrors.WithStack(err)
 }
 
 func (c *gettyRPCClient) isAvailable() bool {
@@ -288,9 +324,10 @@ func (c *gettyRPCClient) close() error {
 }
 
 type gettyRPCClientPool struct {
-	rpcClient *Client
-	size      int   // size of []*gettyRPCClient
-	ttl       int64 // ttl of every gettyRPCClient, it is checked when getConn
+	rpcClient  *Client
+	size       int   // size of []*gettyRPCClient
+	ttl        int64 // ttl of every gettyRPCClient, it is checked when getConn
+	sslEnabled bool
 
 	sync.Mutex
 	conns []*gettyRPCClient
@@ -319,9 +356,9 @@ func (p *gettyRPCClientPool) getGettyRpcClient(protocol, addr string) (*gettyRPC
 	conn, err := p.get()
 	if err == nil && conn == nil {
 		// create new conn
-		return newGettyRPCClientConn(p, protocol, addr)
+		conn, err = newGettyRPCClientConn(p, protocol, addr)
 	}
-	return conn, err
+	return conn, perrors.WithStack(err)
 }
 
 func (p *gettyRPCClientPool) get() (*gettyRPCClient, error) {

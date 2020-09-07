@@ -1,3 +1,20 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package filter_impl
 
 import (
@@ -19,7 +36,7 @@ import (
 	"github.com/apache/dubbo-go/protocol/mock"
 )
 
-func TestActiveFilter_Invoke(t *testing.T) {
+func TestActiveFilterInvoke(t *testing.T) {
 	invoc := invocation.NewRPCInvocation("test", []interface{}{"OK"}, make(map[string]string, 0))
 	url, _ := common.NewURL("dubbo://192.168.10.10:20000/com.ikurento.user.UserProvider")
 	filter := ActiveFilter{}
@@ -33,7 +50,7 @@ func TestActiveFilter_Invoke(t *testing.T) {
 
 }
 
-func TestActiveFilter_OnResponse(t *testing.T) {
+func TestActiveFilterOnResponse(t *testing.T) {
 	c := protocol.CurrentTimeMillis()
 	elapsed := 100
 	invoc := invocation.NewRPCInvocation("test", []interface{}{"OK"}, map[string]string{

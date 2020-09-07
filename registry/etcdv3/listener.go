@@ -38,18 +38,25 @@ type dataListener struct {
 	listener      config_center.ConfigurationListener
 }
 
-// NewRegistryDataListener ...
+// NewRegistryDataListener creates a data listener for etcd
 func NewRegistryDataListener(listener config_center.ConfigurationListener) *dataListener {
-	return &dataListener{listener: listener, interestedURL: []*common.URL{}}
+	return &dataListener{listener: listener}
 }
 
+// AddInterestedURL adds a registration @url to listen
 func (l *dataListener) AddInterestedURL(url *common.URL) {
 	l.interestedURL = append(l.interestedURL, url)
 }
 
+// DataChange processes the data change event from registry center of etcd
 func (l *dataListener) DataChange(eventType remoting.Event) bool {
 
-	url := eventType.Path[strings.Index(eventType.Path, "/providers/")+len("/providers/"):]
+	index := strings.Index(eventType.Path, "/providers/")
+	if index == -1 {
+		logger.Warnf("Listen with no url, event.path={%v}", eventType.Path)
+		return false
+	}
+	url := eventType.Path[index+len("/providers/"):]
 	serviceURL, err := common.NewURL(url)
 	if err != nil {
 		logger.Warnf("Listen NewURL(r{%s}) = error{%v}", eventType.Path, err)
@@ -68,7 +75,6 @@ func (l *dataListener) DataChange(eventType remoting.Event) bool {
 			return true
 		}
 	}
-
 	return false
 }
 
@@ -83,10 +89,13 @@ func NewConfigurationListener(reg *etcdV3Registry) *configurationListener {
 	reg.WaitGroup().Add(1)
 	return &configurationListener{registry: reg, events: make(chan *config_center.ConfigChangeEvent, 32)}
 }
+
+// Process data change event from config center of etcd
 func (l *configurationListener) Process(configType *config_center.ConfigChangeEvent) {
 	l.events <- configType
 }
 
+// Next returns next service event once received
 func (l *configurationListener) Next() (*registry.ServiceEvent, error) {
 	for {
 		select {
@@ -96,7 +105,7 @@ func (l *configurationListener) Next() (*registry.ServiceEvent, error) {
 
 		case e := <-l.events:
 			logger.Infof("got etcd event %#v", e)
-			if e.ConfigType == remoting.EventTypeDel {
+			if e.ConfigType == remoting.EventTypeDel && l.registry.client.Valid() {
 				select {
 				case <-l.registry.Done():
 					logger.Warnf("update @result{%s}. But its connection to registry is invalid", e.Value)
@@ -108,6 +117,8 @@ func (l *configurationListener) Next() (*registry.ServiceEvent, error) {
 		}
 	}
 }
+
+// Close etcd registry center
 func (l *configurationListener) Close() {
 	l.registry.WaitGroup().Done()
 }

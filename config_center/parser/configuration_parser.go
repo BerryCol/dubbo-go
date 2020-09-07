@@ -35,22 +35,22 @@ import (
 )
 
 const (
-	// ScopeApplication ...
+	// ScopeApplication : scope application
 	ScopeApplication = "application"
-	// GeneralType ...
+	// GeneralType defines the general type
 	GeneralType = "general"
 )
 
-// ConfigurationParser ...
+// ConfigurationParser interface
 type ConfigurationParser interface {
 	Parse(string) (map[string]string, error)
 	ParseToUrls(content string) ([]*common.URL, error)
 }
 
-// DefaultConfigurationParser for support properties file in config center
+// DefaultConfigurationParser for supporting properties file in config center
 type DefaultConfigurationParser struct{}
 
-// ConfiguratorConfig ...
+// ConfiguratorConfig defines configurator config
 type ConfiguratorConfig struct {
 	ConfigVersion string       `yaml:"configVersion"`
 	Scope         string       `yaml:"scope"`
@@ -59,7 +59,7 @@ type ConfiguratorConfig struct {
 	Configs       []ConfigItem `yaml:"configs"`
 }
 
-// ConfigItem ...
+// ConfigItem defines config item
 type ConfigItem struct {
 	Type              string            `yaml:"type"`
 	Enabled           bool              `yaml:"enabled"`
@@ -71,7 +71,7 @@ type ConfigItem struct {
 	Side              string            `yaml:"side"`
 }
 
-// Parse ...
+// Parse load content
 func (parser *DefaultConfigurationParser) Parse(content string) (map[string]string, error) {
 	pps, err := properties.LoadString(content)
 	if err != nil {
@@ -81,7 +81,7 @@ func (parser *DefaultConfigurationParser) Parse(content string) (map[string]stri
 	return pps.Map(), nil
 }
 
-// ParseToUrls ...
+// ParseToUrls is used to parse content to urls
 func (parser *DefaultConfigurationParser) ParseToUrls(content string) ([]*common.URL, error) {
 	config := ConfiguratorConfig{}
 	if err := yaml.Unmarshal([]byte(content), &config); err != nil {
@@ -109,6 +109,8 @@ func (parser *DefaultConfigurationParser) ParseToUrls(content string) ([]*common
 	}
 	return allUrls, nil
 }
+
+// serviceItemToUrls is used to transfer item and config to urls
 func serviceItemToUrls(item ConfigItem, config ConfiguratorConfig) ([]*common.URL, error) {
 	var addresses = item.Addresses
 	if len(addresses) == 0 {
@@ -154,6 +156,8 @@ func serviceItemToUrls(item ConfigItem, config ConfiguratorConfig) ([]*common.UR
 	}
 	return urls, nil
 }
+
+// nolint
 func appItemToUrls(item ConfigItem, config ConfiguratorConfig) ([]*common.URL, error) {
 	var addresses = item.Addresses
 	if len(addresses) == 0 {
@@ -194,6 +198,7 @@ func appItemToUrls(item ConfigItem, config ConfiguratorConfig) ([]*common.URL, e
 	return urls, nil
 }
 
+// getServiceString returns service string
 func getServiceString(service string) (string, error) {
 	if len(service) == 0 {
 		return "", perrors.New("service field in configuration is null.")
@@ -217,6 +222,7 @@ func getServiceString(service string) (string, error) {
 	return serviceStr, nil
 }
 
+// nolint
 func getParamString(item ConfigItem) (string, error) {
 	var retStr string
 	retStr = retStr + "category="
@@ -231,21 +237,15 @@ func getParamString(item ConfigItem) (string, error) {
 			"you want to change in the rule.")
 	}
 	for k, v := range params {
-		retStr = retStr + "&"
-		retStr = retStr + k
-		retStr = retStr + "="
-		retStr = retStr + v
+		retStr += "&" + k + "=" + v
 	}
 
-	if len(item.ProviderAddresses) >= 0 {
-		retStr = retStr + "&"
-		retStr = retStr + constant.OVERRIDE_PROVIDERS_KEY
-		retStr = retStr + "="
-		retStr = retStr + strings.Join(item.ProviderAddresses, ",")
-	}
+	retStr += "&" + constant.OVERRIDE_PROVIDERS_KEY + "=" + strings.Join(item.ProviderAddresses, ",")
 
 	return retStr, nil
 }
+
+// getEnabledString returns enabled string
 func getEnabledString(item ConfigItem, config ConfiguratorConfig) string {
 	retStr := "&enabled="
 	if len(item.Type) == 0 || item.Type == GeneralType {

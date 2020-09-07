@@ -19,23 +19,27 @@ package cluster_impl
 
 import (
 	"github.com/apache/dubbo-go/cluster"
+	"github.com/apache/dubbo-go/common/constant"
 	"github.com/apache/dubbo-go/common/extension"
 	"github.com/apache/dubbo-go/protocol"
 )
 
 type failoverCluster struct{}
 
-const name = "failover"
-
 func init() {
-	extension.SetCluster(name, NewFailoverCluster)
+	extension.SetCluster(constant.FAILOVER_CLUSTER_NAME, NewFailoverCluster)
 }
 
-// NewFailoverCluster ...
+// NewFailoverCluster returns a failover cluster instance
+//
+// Failure automatically switch, when there is a failure,
+// retry the other server (default). Usually used for read operations,
+// but retries can result in longer delays.
 func NewFailoverCluster() cluster.Cluster {
 	return &failoverCluster{}
 }
 
+// Join returns a baseClusterInvoker instance
 func (cluster *failoverCluster) Join(directory cluster.Directory) protocol.Invoker {
 	return newFailoverClusterInvoker(directory)
 }
