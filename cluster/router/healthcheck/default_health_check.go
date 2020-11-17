@@ -31,7 +31,7 @@ import (
 )
 
 func init() {
-	extension.SethealthChecker(constant.DEFAULT_HEALTH_CHECKER, NewDefaultHealthChecker)
+	extension.SetHealthChecker(constant.DEFAULT_HEALTH_CHECKER, NewDefaultHealthChecker)
 }
 
 // DefaultHealthChecker is the default implementation of HealthChecker, which determines the health status of
@@ -48,6 +48,10 @@ type DefaultHealthChecker struct {
 // IsHealthy evaluates the healthy state on the given Invoker based on the number of successive bad request
 // and the current active request
 func (c *DefaultHealthChecker) IsHealthy(invoker protocol.Invoker) bool {
+	if !invoker.IsAvailable() {
+		return false
+	}
+
 	urlStatus := protocol.GetURLStatus(invoker.GetUrl())
 	if c.isCircuitBreakerTripped(urlStatus) || urlStatus.GetActive() > c.GetOutStandingRequestCountLimit() {
 		logger.Debugf("Invoker [%s] is currently in circuitbreaker tripped state", invoker.GetUrl().Key())
@@ -85,7 +89,7 @@ func (c *DefaultHealthChecker) getCircuitBreakerSleepWindowTime(status *protocol
 	} else if diff > constant.DEFAULT_SUCCESSIVE_FAILED_REQUEST_MAX_DIFF {
 		diff = constant.DEFAULT_SUCCESSIVE_FAILED_REQUEST_MAX_DIFF
 	}
-	sleepWindow := (1 << diff) * c.GetCircuitTrippedTimeoutFactor()
+	sleepWindow := (1 << uint(diff)) * c.GetCircuitTrippedTimeoutFactor()
 	if sleepWindow > constant.MAX_CIRCUIT_TRIPPED_TIMEOUT_IN_MS {
 		sleepWindow = constant.MAX_CIRCUIT_TRIPPED_TIMEOUT_IN_MS
 	}

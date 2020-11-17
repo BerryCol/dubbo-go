@@ -28,7 +28,6 @@ import (
 )
 
 import (
-	gxnet "github.com/dubbogo/gost/net"
 	perrors "github.com/pkg/errors"
 )
 
@@ -141,19 +140,18 @@ func loadConsumerConfig() {
 
 	// wait for invoker is available, if wait over default 3s, then panic
 	var count int
-	checkok := true
 	for {
+		checkok := true
 		for _, refconfig := range consumerConfig.References {
 			if (refconfig.Check != nil && *refconfig.Check) ||
 				(refconfig.Check == nil && consumerConfig.Check != nil && *consumerConfig.Check) ||
 				(refconfig.Check == nil && consumerConfig.Check == nil) { // default to true
 
-				if refconfig.invoker != nil &&
-					!refconfig.invoker.IsAvailable() {
+				if refconfig.invoker != nil && !refconfig.invoker.IsAvailable() {
 					checkok = false
 					count++
 					if count > maxWait {
-						errMsg := fmt.Sprintf("Failed to check the status of the service %v . No provider available for the service to the consumer use dubbo version %v", refconfig.InterfaceName, constant.Version)
+						errMsg := fmt.Sprintf("Failed to check the status of the service %v. No provider available for the service to the consumer use dubbo version %v", refconfig.InterfaceName, constant.Version)
 						logger.Error(errMsg)
 						panic(errMsg)
 					}
@@ -161,14 +159,13 @@ func loadConsumerConfig() {
 					break
 				}
 				if refconfig.invoker == nil {
-					logger.Warnf("The interface %s invoker not exist , may you should check your interface config.", refconfig.InterfaceName)
+					logger.Warnf("The interface %s invoker not exist, may you should check your interface config.", refconfig.InterfaceName)
 				}
 			}
 		}
 		if checkok {
 			break
 		}
-		checkok = true
 	}
 }
 
@@ -252,7 +249,7 @@ func createInstance(url common.URL) (registry.ServiceInstance, error) {
 
 	host := url.Ip
 	if len(host) == 0 {
-		host, err = gxnet.GetLocalIP()
+		host = common.GetLocalIp()
 		if err != nil {
 			return nil, perrors.WithMessage(err, "could not get the local Ip")
 		}
