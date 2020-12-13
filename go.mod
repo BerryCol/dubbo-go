@@ -11,7 +11,7 @@ require (
 	github.com/coreos/etcd v3.3.25+incompatible
 	github.com/creasty/defaults v1.5.1
 	github.com/dubbogo/go-zookeeper v1.0.2
-	github.com/dubbogo/gost v1.9.2
+	github.com/dubbogo/gost v1.9.5
 	github.com/elazarl/go-bindata-assetfs v1.0.0 // indirect
 	github.com/emicklei/go-restful/v3 v3.4.0
 	github.com/frankban/quicktest v1.4.1 // indirect
@@ -28,7 +28,7 @@ require (
 	github.com/hashicorp/vault/sdk v0.1.14-0.20191112033314-390e96e22eb2
 	github.com/jinzhu/copier v0.0.0-20190625015134-976e0346caa8
 	github.com/magiconair/properties v1.8.4
-	github.com/mitchellh/mapstructure v1.3.3
+	github.com/mitchellh/mapstructure v1.4.0
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd
 	github.com/nacos-group/nacos-sdk-go v1.0.1
 	github.com/opentracing/opentracing-go v1.2.0
@@ -42,7 +42,7 @@ require (
 	go.uber.org/atomic v1.7.0
 	go.uber.org/zap v1.16.0
 	google.golang.org/grpc v1.26.0
-	gopkg.in/yaml.v2 v2.3.0
+	gopkg.in/yaml.v2 v2.4.0
 	k8s.io/api v0.16.9
 	k8s.io/apimachinery v0.16.9
 	k8s.io/client-go v0.16.9
@@ -51,6 +51,7 @@ require (
 
 replace (
 	github.com/envoyproxy/go-control-plane => github.com/envoyproxy/go-control-plane v0.8.0
+	github.com/shirou/gopsutil => github.com/shirou/gopsutil v0.0.0-20181107111621-48177ef5f880
 	launchpad.net/gocheck => github.com/go-check/check v0.0.0-20140225173054-eb6ee6f84d0a
 )
 
