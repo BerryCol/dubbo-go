@@ -23,7 +23,7 @@ require (
 	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0 // indirect
 	github.com/grpc-ecosystem/grpc-gateway v1.9.5 // indirect
 	github.com/hashicorp/consul v1.5.3
-	github.com/hashicorp/consul/api v1.1.0
+	github.com/hashicorp/consul/api v1.9.0
 	github.com/jehiah/go-strftime v0.0.0-20171201141054-1d33003b3869 // indirect
 	github.com/jinzhu/copier v0.0.0-20190625015134-976e0346caa8
 	github.com/jonboulle/clockwork v0.1.0 // indirect
@@ -50,5 +50,5 @@ require (
 	go.uber.org/atomic v1.4.0
 	go.uber.org/zap v1.10.0
 	google.golang.org/grpc v1.22.1
-	gopkg.in/yaml.v2 v2.2.2
+	gopkg.in/yaml.v2 v2.2.8
 )
